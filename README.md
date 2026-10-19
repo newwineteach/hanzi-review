@@ -17,3 +17,11 @@
 GitHub Pages 使用 main 分支根目錄，.nojekyll 保留靜態網站原樣。
 
 劉欣怡 製作
+
+## 第三章之二
+
+- 網址：https://newwineteach.github.io/hanzi-review/chapter03-02/
+- 轉注與假借：14 個講義例字、28 張彩色示意圖、52 題練習。
+- 支援翻卡、圖像提示、拼音、投影、錯題重練與瀏覽器進度儲存。
+- chapter03-02/index.html 為自包含網頁。
+
