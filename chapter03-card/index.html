@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>六書字卡拖移</title>
+<style>
+:root{
+  --bg:#f6f1e6; --ink:#2b2a26; --card:#fffdf7; --line:#d9cfb8;
+  --c1:#2f7d6d; --c2:#c47a12; --c3:#3a6db3; --c4:#a2457a;
+  --ok:#1f9d55; --bad:#d6453d;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;
+  min-height:100vh; display:flex; flex-direction:column; gap:1.2vh; padding:1.2vh 1.2vw;
+  user-select:none; -webkit-user-select:none;
+}
+header{display:flex; align-items:center; gap:1.2vw}
+header h1{font-size:clamp(22px,2.6vw,44px); margin:0; flex:1}
+.progress{font-size:clamp(18px,2vw,34px); font-weight:700}
+button{
+  font:inherit; font-size:clamp(14px,1.3vw,22px); padding:.35em .9em; border-radius:.6em;
+  border:2px solid var(--line); background:#fff; color:var(--ink); cursor:pointer;
+}
+button:hover{background:#efe7d3}
+button.on{background:#e3efe9; border-color:var(--c1)}
+
+/* 四個類別區 */
+.zones{display:grid; grid-template-columns:repeat(4,1fr); gap:1vw; flex:1 1 auto; min-height:34vh}
+.zone{
+  --c:var(--c1); background:#fff; border:4px solid var(--c); border-radius:1.2vw;
+  display:flex; flex-direction:column; overflow:hidden; transition:transform .15s, box-shadow .15s;
+}
+.zone[data-type="象形"]{--c:var(--c1)} .zone[data-type="指事"]{--c:var(--c2)}
+.zone[data-type="會意"]{--c:var(--c3)} .zone[data-type="形聲"]{--c:var(--c4)}
+.zone h2{
+  margin:0; background:var(--c); color:#fff; text-align:center; letter-spacing:.25em;
+  font-size:clamp(26px,3.6vw,64px); padding:.12em 0; font-family:"BiauKai","DFKai-SB","標楷體","Noto Serif TC",serif;
+}
+.zone .count{font-size:.4em; letter-spacing:0; margin-left:.6em; opacity:.85}
+.slots{flex:1; display:grid; grid-template-columns:repeat(3,1fr); grid-auto-rows:min-content; gap:.7vw; padding:.8vw; align-content:start}
+.zone.over{transform:scale(1.025); box-shadow:0 0 0 6px color-mix(in srgb,var(--c) 35%,transparent)}
+.zone.flash-ok{animation:okflash .8s}
+.zone.flash-bad{animation:shake .5s; border-color:var(--bad)}
+@keyframes okflash{0%{background:#c9f0d7}100%{background:#fff}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-12px)}40%{transform:translateX(12px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+
+/* 字卡 */
+.card{
+  background:var(--card); border:3px solid var(--line); border-radius:.9vw; text-align:center;
+  font-family:"BiauKai","DFKai-SB","標楷體","Noto Serif TC",serif; line-height:1.1;
+  touch-action:none; cursor:grab; box-shadow:0 3px 0 rgba(0,0,0,.12);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+.pool .card{width:clamp(70px,7vw,140px); height:clamp(78px,7.8vw,156px); font-size:clamp(46px,5vw,100px)}
+.card.selected{border-color:#222; box-shadow:0 0 0 5px #ffd84d}
+.card.lifted{opacity:.25}
+.card.ghost{position:fixed; z-index:99; pointer-events:none; transform:scale(1.25) rotate(-4deg); box-shadow:0 14px 28px rgba(0,0,0,.35); opacity:.95}
+.card.placed{cursor:default; border-color:var(--c); font-size:clamp(40px,4.6vw,90px); padding:.1em 0; animation:pop .45s}
+.card .hint{font-family:"Microsoft JhengHei",sans-serif; font-size:clamp(12px,1.05vw,19px); color:#555; margin-top:.2em; line-height:1.2; padding:0 .3em}
+body.nohint .hint{display:none}
+.card.nope{animation:shake .5s}
+@keyframes pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+
+/* 中間舞台：放大字＋回應 */
+.stage{display:flex; align-items:center; gap:2vw; background:#fff; border:3px dashed var(--line); border-radius:1.2vw; padding:.8vh 1.5vw; min-height:20vh}
+.spot{
+  width:clamp(120px,15vh,220px); height:clamp(120px,15vh,220px); flex:none; border-radius:1vw; background:var(--card);
+  border:4px solid var(--line); display:flex; align-items:center; justify-content:center;
+  font-family:"BiauKai","DFKai-SB","標楷體","Noto Serif TC",serif; font-size:clamp(80px,11vh,160px);
+}
+.spot.ok{border-color:var(--ok)} .spot.bad{border-color:var(--bad)}
+.msg{flex:1; font-size:clamp(22px,2.8vw,52px); font-weight:700; line-height:1.35}
+.msg small{display:block; font-size:.55em; font-weight:400; color:#555; margin-top:.2em}
+.msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)} .msg.idle{color:#8a826d; font-weight:400}
+
+.pool{display:flex; flex-wrap:wrap; gap:.7vw; justify-content:center; padding:.5vh 0; min-height:9vh}
+.pool.done{align-items:center; font-size:clamp(24px,3vw,56px); font-weight:700; color:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <h1>六書字卡：這個字屬於哪一類？</h1>
+  <span class="progress" id="progress"></span>
+  <button id="btnHint" class="on">組成說明：開</button>
+  <button id="btnSound" class="on">音效：開</button>
+  <button id="btnShuffle">洗牌</button>
+  <button id="btnReset">重來</button>
+</header>
+
+<main class="zones" id="zones"></main>
+
+<section class="stage">
+  <div class="spot" id="spot"></div>
+  <div class="msg idle" id="msg">點一張字卡放大，問學生答案，再把字卡拖到對應的類別。</div>
+</section>
+
+<section class="pool" id="pool"></section>
+
+<script>
+const TYPES = ['象形','指事','會意','形聲'];
+// [字, 類別, 組成說明]
+const DATA = [
+  ['手','象形','畫出手的形狀'],['山','象形','畫出山峰的形狀'],['目','象形','畫出眼睛的形狀'],
+  ['水','象形','畫出流水的樣子'],['木','象形','畫出樹的形狀'],['月','象形','畫出月亮的形狀'],
+  ['刃','指事','刀＋一點，指出刀口'],['本','指事','木＋一點，指出樹根'],['下','指事','記號在橫線下方'],
+  ['三','指事','三橫，表示數目三'],['寸','指事','又（手）＋一點，指出手腕寸口'],['末','指事','木＋一橫，指出樹梢'],
+  ['看','會意','手＋目，手遮在眼睛上看'],['森','會意','三個木，樹很多'],['從','會意','兩個人，一個跟著一個'],
+  ['林','會意','兩個木，樹木成片'],['好','會意','女＋子'],['休','會意','人＋木，人靠著樹休息'],
+  ['跑','形聲','足（意符）＋包（聲符）'],['花','形聲','艹（意符）＋化（聲符）'],['清','形聲','氵（意符）＋青（聲符）'],
+  ['請','形聲','言（意符）＋青（聲符）'],['媽','形聲','女（意符）＋馬（聲符）'],['飯','形聲','食（意符）＋反（聲符）']
+];
+const $ = id => document.getElementById(id);
+let selected = null, placed = 0, soundOn = true, audioCtx = null;
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function beep(ok){
+  if(!soundOn) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const seq = ok ? [[660,0],[880,.12],[1100,.24]] : [[220,0],[180,.15]];
+    seq.forEach(([f,t])=>{
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type = ok?'sine':'square'; o.frequency.value=f; g.gain.value=.08;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t+.12);
+    });
+  }catch(e){}
+}
+
+function buildZones(){
+  $('zones').innerHTML = TYPES.map(t=>
+    `<section class="zone" data-type="${t}"><h2>${t}<span class="count" data-count="${t}"></span></h2><div class="slots"></div></section>`).join('');
+}
+
+function makeCard([ch,type,hint]){
+  const c = document.createElement('div');
+  c.className = 'card'; c.dataset.type = type; c.dataset.ch = ch; c.dataset.hint = hint;
+  c.textContent = ch;
+  c.addEventListener('pointerdown', onDown);
+  return c;
+}
+
+function buildPool(){
+  const pool = $('pool'); pool.className='pool'; pool.innerHTML='';
+  shuffle(DATA.slice()).forEach(d=>pool.appendChild(makeCard(d)));
+}
+
+function updateProgress(){
+  $('progress').textContent = `已歸類 ${placed} / ${DATA.length}`;
+  TYPES.forEach(t=>{
+    const n = document.querySelector(`.zone[data-type="${t}"] .slots`).children.length;
+    document.querySelector(`[data-count="${t}"]`).textContent = n ? `（${n}）` : '';
+  });
+  if(placed === DATA.length){
+    const pool = $('pool'); pool.classList.add('done'); pool.textContent = '🎉 全部歸類完成！';
+    say('ok','🎉 太棒了，24 張字卡都歸類正確！');
+  }
+}
+
+function say(kind, text, sub){
+  const m = $('msg'); m.className = 'msg ' + kind;
+  m.innerHTML = text + (sub ? `<small>${sub}</small>` : '');
+}
+
+function select(card){
+  if(selected) selected.classList.remove('selected');
+  selected = card; card.classList.add('selected');
+  const s = $('spot'); s.textContent = card.dataset.ch; s.className = 'spot';
+  say('idle','這個字是象形、指事、會意，還是形聲？');
+}
+
+// ---- 拖移 ----
+let drag = null;
+function onDown(e){
+  const card = e.currentTarget;
+  if(card.classList.contains('placed')) return;
+  e.preventDefault();
+  select(card);
+  card.setPointerCapture(e.pointerId);
+  const r = card.getBoundingClientRect();
+  drag = {card, id:e.pointerId, sx:e.clientX, sy:e.clientY, ox:e.clientX-r.left, oy:e.clientY-r.top, w:r.width, h:r.height, ghost:null, over:null};
+  card.addEventListener('pointermove', onMove);
+  card.addEventListener('pointerup', onUp);
+  card.addEventListener('pointercancel', onUp);
+}
+function onMove(e){
+  if(!drag) return;
+  if(!drag.ghost){
+    if(Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy) < 6) return;
+    const g = drag.card.cloneNode(true);
+    g.className = 'card ghost'; g.style.width = drag.w+'px'; g.style.height = drag.h+'px';
+    g.style.fontSize = getComputedStyle(drag.card).fontSize;
+    document.body.appendChild(g); drag.ghost = g; drag.card.classList.add('lifted');
+  }
+  drag.ghost.style.left = (e.clientX-drag.ox)+'px'; drag.ghost.style.top = (e.clientY-drag.oy)+'px';
+  const z = zoneAt(e.clientX, e.clientY);
+  if(z !== drag.over){ drag.over && drag.over.classList.remove('over'); z && z.classList.add('over'); drag.over = z; }
+}
+function zoneAt(x,y){ const el = document.elementFromPoint(x,y); return el ? el.closest('.zone') : null; }
+function onUp(e){
+  if(!drag) return;
+  const d = drag; drag = null;
+  d.card.removeEventListener('pointermove', onMove);
+  d.card.removeEventListener('pointerup', onUp);
+  d.card.removeEventListener('pointercancel', onUp);
+  d.card.classList.remove('lifted');
+  if(d.over) d.over.classList.remove('over');
+  if(d.ghost){
+    d.ghost.remove();
+    const z = zoneAt(e.clientX, e.clientY);
+    if(z && e.type === 'pointerup') judge(d.card, z);
+  }
+}
+
+function judge(card, zone){
+  const ch = card.dataset.ch, type = zone.dataset.type, spot = $('spot');
+  if(card.dataset.type === type){
+    card.classList.remove('selected','lifted'); card.classList.add('placed');
+    card.style.setProperty('--c', getComputedStyle(zone).getPropertyValue('--c'));
+    card.removeEventListener('pointerdown', onDown);
+    const h = document.createElement('div'); h.className = 'hint'; h.textContent = card.dataset.hint;
+    card.appendChild(h);
+    zone.querySelector('.slots').appendChild(card);
+    selected = null; placed++;
+    spot.className = 'spot ok';
+    say('ok', `✔ 正確！「${ch}」是${type}字`, card.dataset.hint);
+    zone.classList.remove('flash-ok'); void zone.offsetWidth; zone.classList.add('flash-ok');
+    beep(true); updateProgress();
+  }else{
+    spot.className = 'spot bad';
+    say('bad', `✘ 不對喔，「${ch}」不是${type}，再想想看`);
+    zone.classList.remove('flash-bad'); void zone.offsetWidth; zone.classList.add('flash-bad');
+    card.classList.remove('nope'); void card.offsetWidth; card.classList.add('nope');
+    beep(false);
+  }
+}
+
+// ---- 控制鈕 ----
+function init(){
+  placed = 0; selected = null;
+  buildZones(); buildPool();
+  $('spot').textContent = ''; $('spot').className = 'spot';
+  say('idle','點一張字卡放大，問學生答案，再把字卡拖到對應的類別。');
+  updateProgress();
+}
+$('btnReset').onclick = () => { if(placed===0 || confirm('要全部重來嗎？')) init(); };
+$('btnShuffle').onclick = () => {
+  const pool = $('pool'); const cards = [...pool.querySelectorAll('.card')];
+  shuffle(cards).forEach(c=>pool.appendChild(c));
+};
+$('btnHint').onclick = e => {
+  const off = document.body.classList.toggle('nohint');
+  e.target.textContent = '組成說明：' + (off?'關':'開'); e.target.classList.toggle('on', !off);
+};
+$('btnSound').onclick = e => {
+  soundOn = !soundOn; e.target.textContent = '音效：' + (soundOn?'開':'關'); e.target.classList.toggle('on', soundOn);
+};
+init();
+</script>
+</body>
+</html>
